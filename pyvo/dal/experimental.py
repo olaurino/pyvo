@@ -31,13 +31,12 @@ __all__ = [
 
 IVOA_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S.%fZ"
 
-# file formats supported by table upload and their corresponding MIME types
-TABLE_UPLOAD_FORMAT = {'tsv': 'text/tab-separated-values',
-                       'csv': 'text/csv',
-                       'FITSTable': 'application/fits'}
-# file formats supported by table create and their corresponding MIME types
-TABLE_DEF_FORMAT = {'VOSITable': 'text/xml',
-                    'VOTable': 'application/x-votable+xml'}
+TABLE_LOAD_CAPABILITY_ID = 'ivo://ivoa.net/std/VOSI#table-load-sync-1.x'
+
+# allowed file formats for load
+ALLOWED_CONTENT_TYPES = {'tsv': 'text/tab-separated-values',
+                         'csv': 'text/csv',
+                         'FITSTable': 'application/fits'}
 
 
 def _from_ivoa_format(datetime_str):
@@ -109,7 +108,7 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
 
     def __init__(self, baseurl, session=None):
         """
-        instantiate a Table Access Protocol service
+        instantiate a Tablee Access Protocol service
 
         Parameters
         ----------
@@ -123,7 +122,7 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
         # Check if the session has an update_from_capabilities attribute.
         # This means that the session is aware of IVOA capabilities,
         # and can use this information in processing network requests.
-        # One such use case for this is auth.
+        # One such usecase for this is auth.
         if hasattr(self._session, 'update_from_capabilities'):
             self._session.update_from_capabilities(self.capabilities)
 
@@ -459,81 +458,32 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
             cap.describe()
             print()
 
-    def create_table(self, name, definition, format='VOSITable'):
-        """
-        Creates a table in the catalog service.
-
-        Parameters
-        ----------
-        name: str
-            Name of the table in the TAP service
-        definition: stream (object with a read method)
-            Definition of the table
-        format: str
-            Format of the table definition file (VOSITable or VOTable).
-        """
-        if not name or not definition:
-            raise ValueError(
-                'table name and definition required in create: {}/{}'.
-                format(name, definition))
-        if format not in TABLE_DEF_FORMAT.keys():
-            raise ValueError(
-                'Table definition file format {} not supported ({})'.
-                format(format, ' '.join(TABLE_DEF_FORMAT.keys())))
-
-        headers = {'Content-Type': TABLE_DEF_FORMAT[format]}
-        response = self._session.put('{}/tables/{}'.format(self.baseurl, name),
-                                     headers=headers,
-                                     data=definition)
-        response.raise_for_status()
-
-    def remove_table(self, name):
-        """
-        Remove a table from the catalog service.
-
-        Parameters
-        ----------
-        name: str
-            Name of the table in the TAP service
-        """
-        if not name:
-            raise ValueError(
-                'table name required in : {}'.
-                format(name))
-
-        response = self._session.delete(
-            '{}/tables/{}'.format(self.baseurl, name))
-        response.raise_for_status()
-
-    def load_table(self, name, source, format='tsv'):
+    def load(self, table_name, source, fformat='tsv'):
         """
         Loads content to a table
-
-        Parameters
-        ----------
-        name: str
-            Name of the table
-        source: stream with a read method
-            Name of file or files to load content from
-        format: str
-             Format of the content files (tap-separated values,
-             comma-separated values or VOTable)
+        :param table_name: name of the table
+        :param source: list of files to load content from
+        :param fformat: format of the content files
+        :return:
         """
-        if not name or not source:
-            raise ValueError(
-                'table name and source required in upload: {}/{}'.
-                format(name, source))
-        if format not in TABLE_UPLOAD_FORMAT.keys():
-            raise ValueError(
-                'Table content file format {} not supported ({})'.
-                format(format, ' '.join(TABLE_UPLOAD_FORMAT.keys())))
+        if not table_name or not source:
+            raise AttributeError(
+                'table name and source requiered in upload: {}/{}'.
+                format(table_name, source))
 
-        headers = {'Content-Type': TABLE_UPLOAD_FORMAT[format]}
-        response = self._session.post(
-            '{}/load/{}'.format(self.baseurl, name),
-            headers=headers,
-            data=source)
-        response.raise_for_status()
+        if source == '-':
+            source = ["/dev/stdin"]
+
+            headers = {'Content-Type': ALLOWED_CONTENT_TYPES[fformat]}
+            with open(f, 'rb') as fh:
+                self._tap_client.post((TABLE_LOAD_CAPABILITY_ID, table_name),
+                                      headers=headers,
+                                      data=fh)
+
+            if 'stdin' in f:
+                logger.info('Done uploading from stdin')
+            else:
+                logger.info('Done uploading file {}'.format(fh.name))
 
 
 class AsyncTAPJob:

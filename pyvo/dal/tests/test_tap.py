@@ -6,8 +6,9 @@ from functools import partial
 from contextlib import ExitStack
 import datetime
 import re
-from io import BytesIO
+from io import BytesIO, StringIO
 from urllib.parse import parse_qsl
+import tempfile
 
 import pytest
 import requests_mock
@@ -46,6 +47,59 @@ def sync_fixture(mocker):
 
     with mocker.register_uri(
         'POST', 'http://example.com/tap/sync', content=callback
+    ) as matcher:
+        yield matcher
+
+
+@pytest.fixture()
+def create_fixture(mocker):
+    def match_request(request):
+        data = request.text.read()
+        if b'VOSITable' in data:
+            assert request.headers['Content-Type'] == 'text/xml',\
+                'Wrong file format'
+        elif b'VOTable' in data:
+            assert request.headers['Content-Type'] == \
+                   'application/x-votable+xml', 'Wrong file format'
+        else:
+            assert False, 'BUG'
+        return True
+
+    with mocker.register_uri(
+        'PUT', 'https://example.com/tap/tables/abc',
+        additional_matcher=match_request, status_code=201
+    ) as matcher:
+        yield matcher
+
+
+@pytest.fixture()
+def delete_fixture(mocker):
+    with mocker.register_uri(
+        'DELETE', 'https://example.com/tap/tables/abc', status_code=200,
+    ) as matcher:
+        yield matcher
+
+
+@pytest.fixture()
+def load_fixture(mocker):
+    def match_request(request):
+        data = request.text.read()
+        if b',' in data:
+            assert request.headers['Content-Type'] == 'text/csv',\
+                'Wrong file format'
+        elif b'\t' in data:
+            assert request.headers['Content-Type'] == \
+                   'text/tab-separated-values', 'Wrong file format'
+        elif b'FITSTable' in data:
+            assert request.headers['Content-Type'] == \
+                   'application/fits', 'Wrong file format'
+        else:
+            assert False, 'BUG'
+        return True
+
+    with mocker.register_uri(
+        'POST', 'https://example.com/tap/load/abc',
+        additional_matcher=match_request, status_code=200,
     ) as matcher:
         yield matcher
 
@@ -488,3 +542,51 @@ class TestTAPService:
         assert len(service.get_job_list(phases=['EXECUTING'], last=3)) == 5
         assert len(service.get_job_list(phases=['EXECUTING'], last=3,
                                         after=datetime.datetime.now())) == 6
+
+    @pytest.mark.usefixtures('create_fixture')
+    def test_create_table(self):
+        buffer = BytesIO(b'table definition in VOSITable format')
+        service = TAPService('https://example.com/tap')
+        service.create_table(name='abc', definition=buffer)
+        tmpfile = tempfile.NamedTemporaryFile()
+        with open(tmpfile.name, 'w+b') as f:
+            f.write(b'table definition in VOTable format here')
+        with open(tmpfile.name, 'rb') as f:
+            service.create_table('abc', definition=f, format='VOTable')
+
+        with pytest.raises(ValueError):
+            service.create_table('abc', definition=buffer, format='Unknown')
+        with pytest.raises(ValueError):
+            service.create_table('abc', definition=None, format='VOSITable')
+
+    @pytest.mark.usefixtures('delete_fixture')
+    def test_remove_table(self):
+        service = TAPService('https://example.com/tap')
+        service.remove_table(name='abc')
+
+    @pytest.mark.usefixtures('load_fixture')
+    def test_load_table(self):
+        # csv content in buffer
+        service = TAPService('https://example.com/tap')
+        table_content = BytesIO(b'article,count\nart1,1\nart2,2\nart3,3')
+        service.load_table(name='abc', source=table_content, format='csv')
+
+        # tsv content in file
+        tmpfile = tempfile.NamedTemporaryFile()
+        with open(tmpfile.name, 'w+b') as f:
+            f.write(b'article\tcount\nart1\t1\nart2\t2\nart3\t3')
+        with open(tmpfile.name, 'rb') as f:
+            service.load_table('abc', source=f, format='tsv')
+
+        # FITSTable content in file
+        tmpfile = tempfile.NamedTemporaryFile()
+        with open(tmpfile.name, 'w+b') as f:
+            f.write(b'FITSTable content here')
+        with open(tmpfile.name, 'rb') as f:
+            service.load_table('abc', source=f, format='FITSTable')
+
+        with pytest.raises(ValueError):
+            service.load_table('abc', source=table_content, format='Unknown')
+
+        with pytest.raises(ValueError):
+            service.load_table('abc', source=None, format='tsv')
