@@ -489,7 +489,8 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
 
     def remove_table(self, name):
         """
-        Remove a table from the catalog service.
+        Remove a table from the catalog service (Equivalent to drop command
+        in DB).
 
         Parameters
         ----------
@@ -516,8 +517,8 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
         source: stream with a read method
             Name of file or files to load content from
         format: str
-             Format of the content files (tap-separated values,
-             comma-separated values or VOTable)
+             Format of the content files: tap-separated values(tsv),
+             comma-separated values (csv) or VOTable (VOTable)
         """
         if not name or not source:
             raise ValueError(
