@@ -6,7 +6,7 @@ from functools import partial
 from contextlib import ExitStack
 import datetime
 import re
-from io import BytesIO, StringIO
+from io import BytesIO
 from urllib.parse import parse_qsl
 import tempfile
 
