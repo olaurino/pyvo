@@ -470,7 +470,7 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
         definition: stream (object with a read method)
             Definition of the table
         format: str
-            Format of the table definition file (VOSITable or VOTable).
+            Format of the table definition (VOSITable or VOTable).
         """
         if not name or not definition:
             raise ValueError(
@@ -515,10 +515,10 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
         name: str
             Name of the table
         source: stream with a read method
-            Name of file or files to load content from
+            Stream containing the data to be loaded
         format: str
-             Format of the content files: tap-separated values(tsv),
-             comma-separated values (csv) or VOTable (VOTable)
+            Format of the data source: tap-separated values(tsv),
+            comma-separated values (csv) or VOTable (VOTable)
         """
         if not name or not source:
             raise ValueError(
