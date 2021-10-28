@@ -104,6 +104,29 @@ def load_fixture(mocker):
         yield matcher
 
 
+def get_index_job(phase):
+    return """<?xml version="1.0" encoding="UTF-8"?>
+    <uws:job xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" 
+    xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
+        <uws:jobId>v3njuz4k1ebpdb5q</uws:jobId>
+        <uws:runId />
+        <uws:ownerId>user</uws:ownerId>
+        <uws:phase>{}</uws:phase>
+        <uws:quote>2021-10-29T17:34:19.638</uws:quote>
+        <uws:creationTime>2021-10-28T17:34:19.638</uws:creationTime>
+        <uws:startTime xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true" />
+        <uws:endTime xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:nil="true" />
+        <uws:executionDuration>14400</uws:executionDuration>
+        <uws:destruction>2021-11-04T17:34:19.638</uws:destruction>
+        <uws:parameters>
+            <uws:parameter id="index">article</uws:parameter>
+            <uws:parameter id="table">cadcauthtest1.pyvoTestTable</uws:parameter>
+            <uws:parameter id="unique">true</uws:parameter>
+        </uws:parameters>
+        <uws:results />
+    </uws:job>""".format(phase).encode('utf-8')
+
+
 class MockAsyncTAPServer:
     def __init__(self):
         self._jobs = dict()
@@ -590,3 +613,36 @@ class TestTAPService:
 
         with pytest.raises(ValueError):
             service.load_table('abc', source=None, format='tsv')
+
+    def test_create_index(self):
+        service = TAPService('https://example.com/tap')
+
+        def match_request_text(request):
+            # check details of index are present
+            return 'table=abc&index=col1&unique=true' in request.text
+
+        with requests_mock.Mocker() as rm:
+            # mock initial post to table-update and the subsequent calls to
+            # get, run and check status of the job
+            rm.post('https://example.com/tap/table-update',
+                    additional_matcher=match_request_text,
+                    status_code=303,
+                    headers={'Location': 'https://example.com/tap/uws'})
+            rm.get('https://example.com/tap/uws',
+                   [{'content': get_index_job("PENDING")},
+                    {'content':get_index_job("COMPLETED")}])
+            rm.post('https://example.com/tap/uws/phase', status_code=200)
+            # finally the call
+            service.create_index(table_name='abc', column_name='col1',
+                                 unique=True)
+        # test wrong return status code
+            with requests_mock.Mocker() as rm:
+                # mock initial post to table-update and the subsequent calls to
+                # get, run and check status of the job
+                rm.post('https://example.com/tap/table-update',
+                        additional_matcher=match_request_text,
+                        status_code=200,  # NOT EXPECTED!
+                        headers={'Location': 'https://example.com/tap/uws'})
+                with pytest.raises(RuntimeError):
+                    service.create_index(table_name='abc', column_name='col1',
+                                         unique=True)

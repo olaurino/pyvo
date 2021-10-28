@@ -536,6 +536,46 @@ class TAPService(DALService, AvailabilityMixin, CapabilityMixin):
             data=source)
         response.raise_for_status()
 
+    def create_index(self, table_name, column_name, unique=False):
+        """
+        Creates a table index in the catalog service.
+
+        Parameters
+        ----------
+        table_name: str
+            Name of the table
+        column_name: str
+            Name of the column in the table
+        unique: bool
+            True for unique index, False otherwise
+        """
+        if not table_name or not column_name:
+            raise ValueError(
+                'table and column names are required in index: {}/{}'.
+                format(table_name, column_name))
+
+        result = self._session.post('{}/table-update'.format(self.baseurl),
+                                    data={'table': table_name,
+                                          'index': column_name,
+                                          'unique': 'true' if unique
+                                          else 'false'},
+                                    allow_redirects=False)
+
+        if result.status_code == 303:
+            job_url = result.headers['Location']
+            if not job_url:
+                raise RuntimeError(
+                    'table update job location missing in response')
+            # run the job
+            job = AsyncTAPJob(job_url, session=self._session)
+            job = job.run().wait()
+            job.raise_if_error()
+            # TODO job.delete()
+        else:
+            raise RuntimeError(
+                'BUG: table update expected status 303 received {}'.
+                format(result.status_code))
+
 
 class AsyncTAPJob:
     """
