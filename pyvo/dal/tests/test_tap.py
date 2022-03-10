@@ -571,9 +571,9 @@ class TestTAPService:
         buffer = BytesIO(b'table definition in VOSITable format')
         service = TAPService('https://example.com/tap')
         service.create_table(name='abc', definition=buffer)
-        tmpfile = tempfile.NamedTemporaryFile()
-        with open(tmpfile.name, 'w+b') as f:
-            f.write(b'table definition in VOTable format here')
+        tmpfile = tempfile.NamedTemporaryFile('w+b', delete=False)
+        tmpfile.write(b'table definition in VOTable format here')
+        tmpfile.close()
         with open(tmpfile.name, 'rb') as f:
             service.create_table('abc', definition=f, format='VOTable')
 
@@ -595,16 +595,16 @@ class TestTAPService:
         service.load_table(name='abc', source=table_content, format='csv')
 
         # tsv content in file
-        tmpfile = tempfile.NamedTemporaryFile()
-        with open(tmpfile.name, 'w+b') as f:
-            f.write(b'article\tcount\nart1\t1\nart2\t2\nart3\t3')
+        tmpfile = tempfile.NamedTemporaryFile('w+b', delete=False)
+        tmpfile.write(b'article\tcount\nart1\t1\nart2\t2\nart3\t3')
+        tmpfile.close()
         with open(tmpfile.name, 'rb') as f:
             service.load_table('abc', source=f, format='tsv')
 
         # FITSTable content in file
-        tmpfile = tempfile.NamedTemporaryFile()
-        with open(tmpfile.name, 'w+b') as f:
-            f.write(b'FITSTable content here')
+        tmpfile = tempfile.NamedTemporaryFile('w+b', delete=False)
+        tmpfile.write(b'FITSTable content here')
+        tmpfile.close()
         with open(tmpfile.name, 'rb') as f:
             service.load_table('abc', source=f, format='FITSTable')
 
