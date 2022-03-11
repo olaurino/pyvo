@@ -1,9 +1,21 @@
-1.2 (unreleased)
+1.3 (unreleased)
+================
+
+
+1.2.1 (2022-01-12)
+==================
+
+- Get wraps decorator from functools instead of astropy (no functional change) [#283]
+
+
+1.2 (2021-12-17)
 ================
 
 - Make .bysemantics expand its terms to the entire branch by default [#241]
 
 - Added optional includeaux flag for regTAP search() [#258]
+
+- Added VOResource 1.1 mirrorurl and testquerystring to vosi.Interface [#269]
 
 
 1.1 (2020-06-26)
