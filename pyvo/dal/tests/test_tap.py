@@ -106,7 +106,7 @@ def load_fixture(mocker):
 
 def get_index_job(phase):
     return """<?xml version="1.0" encoding="UTF-8"?>
-    <uws:job xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0" 
+    <uws:job xmlns:uws="http://www.ivoa.net/xml/UWS/v1.0"
     xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1">
         <uws:jobId>v3njuz4k1ebpdb5q</uws:jobId>
         <uws:runId />
